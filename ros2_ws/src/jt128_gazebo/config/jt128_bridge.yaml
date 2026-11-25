@@ -13,3 +13,10 @@
   gz_type_name: gz.msgs.Clock
   ros_type_name: rosgraph_msgs/msg/Clock
   direction: GZ_TO_ROS
+
+- gz_topic_name: jt128/imu
+  ros_topic_name: jt128/imu
+  gz_type_name: gz.msgs.IMU
+  ros_type_name: sensor_msgs/msg/Imu
+  direction: GZ_TO_ROS
+  lazy: true

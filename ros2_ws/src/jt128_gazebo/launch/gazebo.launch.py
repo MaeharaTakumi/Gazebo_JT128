@@ -23,6 +23,9 @@ def generate_launch_description() -> LaunchDescription:
 
     hz_arg = DeclareLaunchArgument("hz", default_value="10", description="スキャン周波数 [Hz] (10 または 20)")
     noise_arg = DeclareLaunchArgument("noise", default_value="true", description="Gaussian ノイズ有効化")
+    imu_arg = DeclareLaunchArgument("imu", default_value="true", description="IMU センサ有効化")
+    imu_hz_arg = DeclareLaunchArgument("imu_hz", default_value="200", description="IMU 更新周波数 (200 または 500 Hz)")
+    imu_noise_arg = DeclareLaunchArgument("imu_noise", default_value="true", description="IMU ノイズ有効化")
     config_arg = DeclareLaunchArgument(
         "config",
         default_value=str(gazebo_share / "config" / "jt128.yaml"),
@@ -33,6 +36,9 @@ def generate_launch_description() -> LaunchDescription:
 
     hz = LaunchConfiguration("hz")
     noise = LaunchConfiguration("noise")
+    imu = LaunchConfiguration("imu")
+    imu_hz = LaunchConfiguration("imu_hz")
+    imu_noise = LaunchConfiguration("imu_noise")
     config = LaunchConfiguration("config")
     headless = LaunchConfiguration("headless")
     rviz = LaunchConfiguration("rviz")
@@ -43,6 +49,9 @@ def generate_launch_description() -> LaunchDescription:
             "xacro ", xacro_file,
             " hz:=", hz,
             " noise:=", noise,
+            " imu:=", imu,
+            " imu_hz:=", imu_hz,
+            " imu_noise:=", imu_noise,
             " config:=", config,
         ]),
         value_type=str,
@@ -102,6 +111,9 @@ def generate_launch_description() -> LaunchDescription:
     return LaunchDescription([
         hz_arg,
         noise_arg,
+        imu_arg,
+        imu_hz_arg,
+        imu_noise_arg,
         config_arg,
         headless_arg,
         rviz_arg,

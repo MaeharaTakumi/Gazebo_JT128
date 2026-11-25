@@ -5,6 +5,9 @@
   <xacro:arg name="hz" default="10"/>
   <xacro:arg name="noise" default="true"/>
   <xacro:arg name="config" default=""/>
+  <xacro:arg name="imu" default="true"/>
+  <xacro:arg name="imu_hz" default="200"/>
+  <xacro:arg name="imu_noise" default="true"/>
 
   <!-- ロボット筐体寸法 [m] -->
   <xacro:property name="base_lx" value="0.4"/>
@@ -50,6 +53,9 @@
     parent="base_link"
     hz="$(arg hz)"
     noise="$(arg noise)"
+    imu="$(arg imu)"
+    imu_hz="$(arg imu_hz)"
+    imu_noise="$(arg imu_noise)"
     config="$(arg config)">
     <origin xyz="0 0 ${base_lz}" rpy="0 0 0"/>
   </xacro:JT128>

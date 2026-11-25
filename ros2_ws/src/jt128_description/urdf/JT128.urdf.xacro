@@ -9,13 +9,19 @@
   <xacro:property name="jt128_col_height" value="0.074"/>
   <!-- Figure 5 の LiDAR 座標系原点高さ 47.84 mm [m]（Appendix D に従い回転する光学中心ではなく座標系原点を使用） -->
   <xacro:property name="jt128_default_scan_z" value="0.04784"/>
+  <!-- Figure 5 green point relative to LiDAR origin; provisional pending manual dimension check [m] -->
+  <xacro:property name="jt128_imu_x" value="0.0076"/>
+  <xacro:property name="jt128_imu_y" value="-0.01367"/>
+  <xacro:property name="jt128_imu_z" value="-0.01274"/>
+  <xacro:property name="jt128_imu_gyro_precision" value="0.000532"/>
+  <xacro:property name="jt128_imu_accel_precision" value="0.00120"/>
   <xacro:property name="jt128_v_samples" value="128"/>         <!-- 垂直チャンネル数 -->
   <xacro:property name="jt128_v_min_deg" value="-4.4"/>        <!-- 垂直最小角 [deg] -->
   <xacro:property name="jt128_v_max_deg" value="90.5"/>        <!-- 垂直最大角（天頂超え）[deg] -->
   <xacro:property name="jt128_range_min" value="0.05"/>        <!-- 最小測距距離 [m] -->
   <xacro:property name="jt128_range_max" value="60.0"/>        <!-- 最大測距距離 [m] -->
   <xacro:property name="jt128_range_res" value="0.01"/>        <!-- 距離分解能 [m] -->
-  <xacro:property name="jt128_allowed_keys" value="${('hz', 'noise', 'noise_stddev')}"/>
+  <xacro:property name="jt128_allowed_keys" value="${('hz', 'noise', 'noise_stddev', 'imu_hz', 'imu_noise')}"/>
 
   <!--
     Hesai JT128 URDF/Gazebo マクロ（VLP-16 準拠の 2 段構成）
@@ -37,6 +43,10 @@
     hz:=10
     noise:=true
     noise_stddev:=0.02
+    imu:=true
+    imu_topic:=jt128/imu
+    imu_hz:=200
+    imu_noise:=true
     scan_z:=${jt128_default_scan_z}
     config:=''">
 
@@ -54,6 +64,9 @@
     <xacro:property name="eff_noise_raw" value="${jt128_cfg['noise'] if 'noise' in jt128_cfg else noise}"/>
     <xacro:property name="eff_noise" value="${str(eff_noise_raw).lower() in ('true', '1')}"/>
     <xacro:property name="eff_noise_stddev" value="${float(jt128_cfg['noise_stddev']) if 'noise_stddev' in jt128_cfg else float(noise_stddev)}"/>
+    <xacro:property name="eff_imu_hz" value="${int(jt128_cfg['imu_hz']) if 'imu_hz' in jt128_cfg else int(imu_hz)}"/>
+    <xacro:property name="eff_imu_noise_raw" value="${jt128_cfg['imu_noise'] if 'imu_noise' in jt128_cfg else imu_noise}"/>
+    <xacro:property name="eff_imu_noise" value="${str(eff_imu_noise_raw).lower() in ('true', '1')}"/>
 
     <!-- hz は 10 (900 サンプル/周) または 20 (450 サンプル/周) のみ許可 -->
     <xacro:unless value="${eff_hz in (10, 20)}">
@@ -61,6 +74,10 @@
       <xacro:if value="${jt128_err_hz}"/>
     </xacro:unless>
     <xacro:property name="h_samples" value="${900 if eff_hz == 10 else 450}"/>
+    <xacro:unless value="${eff_imu_hz in (200, 500)}">
+      <xacro:property name="jt128_err_imu_hz" value="${xacro.fatal('JT128 の imu_hz は 200 または 500 のみ指定可能です (指定値: ' + str(eff_imu_hz) + ')')}"/>
+      <xacro:if value="${jt128_err_imu_hz}"/>
+    </xacro:unless>
 
     <joint name="${name}_base_mount_joint" type="fixed">
       <xacro:insert_block name="origin"/>
@@ -147,5 +164,45 @@
         </lidar>
       </sensor>
     </gazebo>
+
+    <xacro:if value="${str(imu).lower() in ('true', '1')}">
+      <joint name="${name}_imu_joint" type="fixed">
+        <origin xyz="${jt128_imu_x} ${jt128_imu_y} ${jt128_imu_z}" rpy="0 0 0"/>
+        <parent link="${name}"/>
+        <child link="jt_128_imu"/>
+      </joint>
+      <link name="jt_128_imu">
+        <inertial>
+          <mass value="0.001"/>
+          <origin xyz="0 0 0" rpy="0 0 0"/>
+          <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+        </inertial>
+      </link>
+      <gazebo reference="jt_128_imu">
+        <sensor name="${name}_imu" type="imu">
+          <gz_frame_id>jt_128_imu</gz_frame_id>
+          <topic>${imu_topic}</topic>
+          <update_rate>${eff_imu_hz}</update_rate>
+          <always_on>true</always_on>
+          <visualize>false</visualize>
+          <imu>
+            <orientation_reference_frame><localization>ENU</localization></orientation_reference_frame>
+            <enable_orientation>true</enable_orientation>
+            <xacro:if value="${eff_imu_noise}">
+            <angular_velocity>
+              <x><noise type="gaussian_quantized"><mean>0</mean><stddev>0.002</stddev><bias_mean>0</bias_mean><bias_stddev>0.005</bias_stddev><dynamic_bias_stddev>5e-5</dynamic_bias_stddev><dynamic_bias_correlation_time>1000</dynamic_bias_correlation_time><precision>${jt128_imu_gyro_precision}</precision></noise></x>
+              <y><noise type="gaussian_quantized"><mean>0</mean><stddev>0.002</stddev><bias_mean>0</bias_mean><bias_stddev>0.005</bias_stddev><dynamic_bias_stddev>5e-5</dynamic_bias_stddev><dynamic_bias_correlation_time>1000</dynamic_bias_correlation_time><precision>${jt128_imu_gyro_precision}</precision></noise></y>
+              <z><noise type="gaussian_quantized"><mean>0</mean><stddev>0.002</stddev><bias_mean>0</bias_mean><bias_stddev>0.005</bias_stddev><dynamic_bias_stddev>5e-5</dynamic_bias_stddev><dynamic_bias_correlation_time>1000</dynamic_bias_correlation_time><precision>${jt128_imu_gyro_precision}</precision></noise></z>
+            </angular_velocity>
+            <linear_acceleration>
+              <x><noise type="gaussian_quantized"><mean>0</mean><stddev>0.02</stddev><bias_mean>0</bias_mean><bias_stddev>0.02</bias_stddev><dynamic_bias_stddev>0.003</dynamic_bias_stddev><dynamic_bias_correlation_time>300</dynamic_bias_correlation_time><precision>${jt128_imu_accel_precision}</precision></noise></x>
+              <y><noise type="gaussian_quantized"><mean>0</mean><stddev>0.02</stddev><bias_mean>0</bias_mean><bias_stddev>0.02</bias_stddev><dynamic_bias_stddev>0.003</dynamic_bias_stddev><dynamic_bias_correlation_time>300</dynamic_bias_correlation_time><precision>${jt128_imu_accel_precision}</precision></noise></y>
+              <z><noise type="gaussian_quantized"><mean>0</mean><stddev>0.02</stddev><bias_mean>0</bias_mean><bias_stddev>0.02</bias_stddev><dynamic_bias_stddev>0.003</dynamic_bias_stddev><dynamic_bias_correlation_time>300</dynamic_bias_correlation_time><precision>${jt128_imu_accel_precision}</precision></noise></z>
+            </linear_acceleration>
+            </xacro:if>
+          </imu>
+        </sensor>
+      </gazebo>
+    </xacro:if>
   </xacro:macro>
 </robot>
