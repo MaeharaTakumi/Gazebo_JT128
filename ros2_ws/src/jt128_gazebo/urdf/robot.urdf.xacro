@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="robot">
+  <xacro:include filename="$(find jt128_description)/urdf/JT128.urdf.xacro"/>
+
+  <xacro:arg name="hz" default="10"/>
+  <xacro:arg name="noise" default="true"/>
+  <xacro:arg name="config" default=""/>
+
+  <!-- ロボット筐体寸法 [m] -->
+  <xacro:property name="base_lx" value="0.4"/>
+  <xacro:property name="base_ly" value="0.3"/>
+  <xacro:property name="base_lz" value="0.2"/>
+  <xacro:property name="base_mass" value="5.0"/>
+
+  <!-- 駆動しない静的箱型ロボット（底面 Z=0、上面 Z=${base_lz}） -->
+  <link name="base_link">
+    <inertial>
+      <origin xyz="0 0 ${base_lz / 2.0}" rpy="0 0 0"/>
+      <mass value="${base_mass}"/>
+      <inertia
+        ixx="${base_mass * (base_ly * base_ly + base_lz * base_lz) / 12.0}"
+        ixy="0" ixz="0"
+        iyy="${base_mass * (base_lx * base_lx + base_lz * base_lz) / 12.0}"
+        iyz="0"
+        izz="${base_mass * (base_lx * base_lx + base_ly * base_ly) / 12.0}"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 ${base_lz / 2.0}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${base_lx} ${base_ly} ${base_lz}"/>
+      </geometry>
+      <material name="base_gray">
+        <color rgba="0.4 0.4 0.45 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${base_lz / 2.0}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${base_lx} ${base_ly} ${base_lz}"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <gazebo>
+    <static>true</static>
+  </gazebo>
+
+  <!-- 箱型ロボット上面中央へ JT128 を搭載 -->
+  <xacro:JT128
+    parent="base_link"
+    hz="$(arg hz)"
+    noise="$(arg noise)"
+    config="$(arg config)">
+    <origin xyz="0 0 ${base_lz}" rpy="0 0 0"/>
+  </xacro:JT128>
+</robot>

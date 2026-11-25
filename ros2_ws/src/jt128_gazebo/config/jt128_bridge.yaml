@@ -1,0 +1,15 @@
+# Hesai JT128 点群およびシミュレーション時刻の ROS 2 / Gazebo ブリッジ設定
+# 注意: URDF マクロの topic や name を既定値から変更した場合は、ここも書き換えること
+
+- gz_topic_name: jt128/scan/points
+  ros_topic_name: jt128/points
+  gz_type_name: gz.msgs.PointCloudPacked
+  ros_type_name: sensor_msgs/msg/PointCloud2
+  direction: GZ_TO_ROS
+  lazy: true
+
+- gz_topic_name: /clock
+  ros_topic_name: /clock
+  gz_type_name: gz.msgs.Clock
+  ros_type_name: rosgraph_msgs/msg/Clock
+  direction: GZ_TO_ROS

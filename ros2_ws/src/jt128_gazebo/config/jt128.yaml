@@ -1,0 +1,4 @@
+# Hesai JT128 標準条件設定（10 Hz・Gaussian ノイズ 0.02 m 有効）
+hz: 20
+noise: true
+noise_stddev: 0.02

@@ -1,0 +1,151 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="JT128">
+  <!-- Hesai JT128 仕様値（最新マニュアル J01-en-261120 準拠・不変パラメータはここに集約） -->
+  <xacro:property name="jt128_mass" value="0.265"/>            <!-- 質量上限 265 g 未満 [kg] -->
+  <xacro:property name="jt128_radius" value="0.031275"/>       <!-- 底面 Φ62.55 mm の半径 [m] -->
+  <xacro:property name="jt128_height" value="0.07305"/>        <!-- 全高 73.05 mm [m] -->
+  <!-- コリジョン用簡易円柱寸法（直径 63 mm、高さ 74 mm、余裕を持たせた保護包絡） -->
+  <xacro:property name="jt128_col_radius" value="0.0315"/>
+  <xacro:property name="jt128_col_height" value="0.074"/>
+  <!-- Figure 5 の LiDAR 座標系原点高さ 47.84 mm [m]（Appendix D に従い回転する光学中心ではなく座標系原点を使用） -->
+  <xacro:property name="jt128_default_scan_z" value="0.04784"/>
+  <xacro:property name="jt128_v_samples" value="128"/>         <!-- 垂直チャンネル数 -->
+  <xacro:property name="jt128_v_min_deg" value="-4.4"/>        <!-- 垂直最小角 [deg] -->
+  <xacro:property name="jt128_v_max_deg" value="90.5"/>        <!-- 垂直最大角（天頂超え）[deg] -->
+  <xacro:property name="jt128_range_min" value="0.05"/>        <!-- 最小測距距離 [m] -->
+  <xacro:property name="jt128_range_max" value="60.0"/>        <!-- 最大測距距離 [m] -->
+  <xacro:property name="jt128_range_res" value="0.01"/>        <!-- 距離分解能 [m] -->
+  <xacro:property name="jt128_allowed_keys" value="${('hz', 'noise', 'noise_stddev')}"/>
+
+  <!--
+    Hesai JT128 URDF/Gazebo マクロ（VLP-16 準拠の 2 段構成）
+    - *origin: parent リンクから ${name}_base_link への取り付け姿勢
+    - parent: 取り付け先リンク名
+    - name: センサリンク名・点群 frame_id（既定: jt128）
+    - topic: Gazebo トピック名（点群は ${topic}/points に出力）
+    - hz: スキャン周波数 10 または 20 [Hz]
+    - noise: true のとき Gaussian ノイズを付与
+    - noise_stddev: ノイズ標準偏差 [m]（マニュアル precision 2 cm に対応）
+    - scan_z: 筐体底面中心からスキャン中心までの高さ [m]
+    - config: YAML 設定ファイルパス（空文字の場合は使用しない）
+  -->
+  <xacro:macro name="JT128" params="
+    *origin
+    parent:=base_link
+    name:=jt128
+    topic:=jt128/scan
+    hz:=10
+    noise:=true
+    noise_stddev:=0.02
+    scan_z:=${jt128_default_scan_z}
+    config:=''">
+
+    <!-- YAML 指定時は読み込み（存在しないファイルは xacro.load_yaml がファイル名付きで停止） -->
+    <xacro:property name="jt128_cfg_raw" value="${xacro.load_yaml(config) if config != '' else dict()}"/>
+    <xacro:property name="jt128_cfg" value="${jt128_cfg_raw if jt128_cfg_raw is not None else dict()}"/>
+    <xacro:property name="jt128_invalid_keys" value="${[k for k in jt128_cfg.keys() if k not in jt128_allowed_keys]}"/>
+    <xacro:if value="${len(jt128_invalid_keys) > 0}">
+      <xacro:property name="jt128_err_keys" value="${xacro.fatal('JT128 config に未対応のキーが含まれています: ' + str(jt128_invalid_keys))}"/>
+      <xacro:if value="${jt128_err_keys}"/>
+    </xacro:if>
+
+    <!-- 優先順位: YAML のキー > マクロの引数 -->
+    <xacro:property name="eff_hz" value="${int(jt128_cfg['hz']) if 'hz' in jt128_cfg else int(hz)}"/>
+    <xacro:property name="eff_noise_raw" value="${jt128_cfg['noise'] if 'noise' in jt128_cfg else noise}"/>
+    <xacro:property name="eff_noise" value="${str(eff_noise_raw).lower() in ('true', '1')}"/>
+    <xacro:property name="eff_noise_stddev" value="${float(jt128_cfg['noise_stddev']) if 'noise_stddev' in jt128_cfg else float(noise_stddev)}"/>
+
+    <!-- hz は 10 (900 サンプル/周) または 20 (450 サンプル/周) のみ許可 -->
+    <xacro:unless value="${eff_hz in (10, 20)}">
+      <xacro:property name="jt128_err_hz" value="${xacro.fatal('JT128 の hz は 10 または 20 のみ指定可能です (指定値: ' + str(eff_hz) + ')')}"/>
+      <xacro:if value="${jt128_err_hz}"/>
+    </xacro:unless>
+    <xacro:property name="h_samples" value="${900 if eff_hz == 10 else 450}"/>
+
+    <joint name="${name}_base_mount_joint" type="fixed">
+      <xacro:insert_block name="origin"/>
+      <parent link="${parent}"/>
+      <child link="${name}_base_link"/>
+    </joint>
+
+    <link name="${name}_base_link">
+      <inertial>
+        <!-- メッシュ原点は底面中心のため、重心は全高の 1/2 に近似 -->
+        <origin xyz="0 0 ${jt128_height / 2.0}" rpy="0 0 0"/>
+        <mass value="${jt128_mass}"/>
+        <inertia
+          ixx="${jt128_mass * (3.0 * jt128_radius * jt128_radius + jt128_height * jt128_height) / 12.0}"
+          ixy="0" ixz="0"
+          iyy="${jt128_mass * (3.0 * jt128_radius * jt128_radius + jt128_height * jt128_height) / 12.0}"
+          iyz="0"
+          izz="${jt128_mass * jt128_radius * jt128_radius / 2.0}"/>
+      </inertial>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="package://jt128_description/meshes/JT128_visual.dae"/>
+        </geometry>
+      </visual>
+      <collision>
+        <!-- cylinder の原点は中心のため、高さの半分だけ Z 方向に上げて底面をリンク原点に合わせる -->
+        <origin xyz="0 0 ${jt128_col_height / 2.0}" rpy="0 0 0"/>
+        <geometry>
+          <cylinder radius="${jt128_col_radius}" length="${jt128_col_height}"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <joint name="${name}_base_scan_joint" type="fixed">
+      <origin xyz="0 0 ${scan_z}" rpy="0 0 0"/>
+      <parent link="${name}_base_link"/>
+      <child link="${name}"/>
+    </joint>
+
+    <link name="${name}">
+      <inertial>
+        <mass value="0.001"/>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+      </inertial>
+    </link>
+
+    <!-- Gazebo Sim 標準 gpu_lidar（実機は不均等垂直角・平面投影だが、シミュレーションでは均等角で近似） -->
+    <gazebo reference="${name}">
+      <sensor name="${name}" type="gpu_lidar">
+        <gz_frame_id>${name}</gz_frame_id>
+        <topic>${topic}</topic>
+        <update_rate>${eff_hz}</update_rate>
+        <always_on>true</always_on>
+        <visualize>false</visualize>
+        <lidar>
+          <scan>
+            <horizontal>
+              <samples>${h_samples}</samples>
+              <resolution>1</resolution>
+              <min_angle>${-math.pi}</min_angle>
+              <max_angle>${math.pi}</max_angle>
+            </horizontal>
+            <vertical>
+              <samples>${jt128_v_samples}</samples>
+              <resolution>1</resolution>
+              <min_angle>${jt128_v_min_deg * math.pi / 180.0}</min_angle>
+              <max_angle>${jt128_v_max_deg * math.pi / 180.0}</max_angle>
+            </vertical>
+          </scan>
+          <range>
+            <min>${jt128_range_min}</min>
+            <max>${jt128_range_max}</max>
+            <resolution>${jt128_range_res}</resolution>
+          </range>
+          <xacro:if value="${eff_noise}">
+            <noise>
+              <type>gaussian</type>
+              <mean>0.0</mean>
+              <stddev>${eff_noise_stddev}</stddev>
+            </noise>
+          </xacro:if>
+        </lidar>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+</robot>

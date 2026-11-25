@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+<!-- Gazebo Sim Resource Browser 用スタンドアロンモデル（xacro 展開値と同等） -->
+<sdf version="1.9">
+  <model name="jt128">
+    <static>true</static>
+    <link name="jt128_base_link">
+      <inertial>
+        <pose>0 0 0.036525 0 0 0</pose>
+        <mass>0.265</mass>
+        <inertia>
+          <ixx>0.00018257</ixx>
+          <iyy>0.00018257</iyy>
+          <izz>0.00012960</izz>
+        </inertia>
+      </inertial>
+      <visual name="visual">
+        <geometry>
+          <mesh>
+            <uri>model://jt128_description/meshes/JT128_visual.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+      <collision name="collision">
+        <pose>0 0 0.037 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.0315</radius>
+            <length>0.074</length>
+          </cylinder>
+        </geometry>
+      </collision>
+      <sensor name="jt128" type="gpu_lidar">
+        <!-- Figure 5 の LiDAR 座標系原点高さ 47.84 mm -->
+        <pose>0 0 0.04784 0 0 0</pose>
+        <gz_frame_id>jt128</gz_frame_id>
+        <topic>jt128/scan</topic>
+        <update_rate>10</update_rate>
+        <always_on>true</always_on>
+        <visualize>false</visualize>
+        <lidar>
+          <scan>
+            <horizontal>
+              <samples>900</samples>
+              <resolution>1</resolution>
+              <min_angle>-3.141592653589793</min_angle>
+              <max_angle>3.141592653589793</max_angle>
+            </horizontal>
+            <vertical>
+              <samples>128</samples>
+              <resolution>1</resolution>
+              <min_angle>-0.0767944870877505</min_angle>
+              <max_angle>1.579522973054868</max_angle>
+            </vertical>
+          </scan>
+          <range>
+            <min>0.05</min>
+            <max>60.0</max>
+            <resolution>0.01</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.02</stddev>
+          </noise>
+        </lidar>
+      </sensor>
+    </link>
+  </model>
+</sdf>

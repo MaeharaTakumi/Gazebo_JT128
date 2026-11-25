@@ -1,0 +1,34 @@
+services:
+  jt128_sim:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: jt128_sim
+    # ホスト側と同一ネットワーク・共有メモリで ROS 2 / Gazebo / X11 を動作させる
+    network_mode: host
+    ipc: host
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./ros2_ws:/root/ros2_ws
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - /dev/shm:/dev/shm
+    # Intel/AMD GPU を使用する場合は、下の NVIDIA 設定の代わりに devices を有効化する
+    # devices:
+    #   - /dev/dri:/dev/dri
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility,graphics,display
+      # bashrc を読まない起動方法（exec の単発コマンド等）に備えて環境変数でも指定
+      - ROS_DOMAIN_ID=11
+      - ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+    # NVIDIA GPU によるハードウェアレンダリング（ogre2）を有効化
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
