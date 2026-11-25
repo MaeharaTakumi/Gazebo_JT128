@@ -139,7 +139,29 @@ Hesai JT128（3D LiDAR）を Gazebo Sim（Harmonic）および ROS 2（Jazzy）�
 - 優先順位は **YAML 内のキー > マクロの引数** です。YAML 内で省略されたキーはマクロ引数の値で補われます。
 
 #### ブリッジ設定の注意
-[config/jt128_bridge.yaml](ros2_ws/src/jt128_gazebo/config/jt128_bridge.yaml) は YAML 仕様上変数展開ができないため、既定のトピック名（`jt128/scan/points` → `jt128/points`）に固定しています。マクロの `topic` または `name` を変更した場合は、ブリッジ YAML も合わせて書き換えてください。
+[config/jt128_bridge.yaml](ros2_ws/src/jt128_gazebo/config/jt128_bridge.yaml) は YAML 仕様上変数展開ができないため、既定のトピック名（`jt128/scan/points` → `jt128/points`）に固定しています。マクロの `topic` を変更した場合は、ブリッジ YAML の `gz_topic_name` も合わせて変更してください。`name` を変更した場合はリンク名や点群の `frame_id` が変わりますが、トピック名は変わりません。
+
+### 3.4 Gazebo world への単体設置 (`jt128_description`)
+
+`jt128_description` には、ロボット URDF に組み込まず LiDAR 単体で使う Gazebo モデルも含まれています。world の `</world>` の直前に次を追加すると、原点から `z=0.2 m` の位置に設置できます。
+
+```xml
+<include>
+  <uri>model://jt128</uri>
+  <name>jt128</name>
+  <pose>0 0 0.2 0 0 0</pose>
+</include>
+```
+
+通常の `gz sim` から起動する場合は、モデルとメッシュの URI を解決できるよう、ビルド済みワークスペースを source したシェルでリソースパスを設定します。
+
+```bash
+JT128_SHARE="$(ros2 pkg prefix --share jt128_description)"
+export GZ_SIM_RESOURCE_PATH="${JT128_SHARE}/models:${JT128_SHARE}/..${GZ_SIM_RESOURCE_PATH:+:${GZ_SIM_RESOURCE_PATH}}"
+gz sim /path/to/your_world.sdf
+```
+
+このスタンドアロンモデルのスキャン周波数やノイズは `models/jt128/model.sdf` に設定されています。URDF マクロの `hz`、`noise`、YAML 引数は適用されません。また、単体モデルを world に読み込むだけでは ROS 2 ブリッジは起動しません。ROS 2 へ点群を配信する場合は、`ros_gz_bridge` を別途起動してください。
 
 ---
 
