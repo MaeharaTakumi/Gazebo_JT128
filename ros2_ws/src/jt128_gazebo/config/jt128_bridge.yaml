@@ -2,7 +2,7 @@
 # 注意: URDF マクロの topic や name を既定値から変更した場合は、ここも書き換えること
 
 - gz_topic_name: jt128/scan/points
-  ros_topic_name: jt128/points
+  ros_topic_name: jt128_points
   gz_type_name: gz.msgs.PointCloudPacked
   ros_type_name: sensor_msgs/msg/PointCloud2
   direction: GZ_TO_ROS
