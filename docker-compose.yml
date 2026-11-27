@@ -3,6 +3,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # コンテナ内ユーザーの UID/GID をホストに合わせる（ホストが 1000 以外なら HOST_UID / HOST_GID を指定してビルド）
+      args:
+        USER_UID: ${HOST_UID:-1000}
+        USER_GID: ${HOST_GID:-1000}
     container_name: jt128_sim
     # ホスト側と同一ネットワーク・共有メモリで ROS 2 / Gazebo / X11 を動作させる
     network_mode: host
@@ -10,12 +14,16 @@ services:
     stdin_open: true
     tty: true
     volumes:
-      - ./ros2_ws:/root/ros2_ws
+      - ./ros2_ws:/home/ubuntu/ros2_ws
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       - /dev/shm:/dev/shm
     # Intel/AMD GPU を使用する場合は、下の NVIDIA 設定の代わりに devices を有効化する
     # devices:
     #   - /dev/dri:/dev/dri
+    # 非 root でも /dev/dri を使えるよう、ホストの video / render の GID（getent group video render で確認）を追加する
+    # group_add:
+    #   - "44"
+    #   - "<render の GID>"
     environment:
       - DISPLAY=${DISPLAY}
       - QT_X11_NO_MITSHM=1
@@ -24,6 +32,8 @@ services:
       # bashrc を読まない起動方法（exec の単発コマンド等）に備えて環境変数でも指定
       - ROS_DOMAIN_ID=11
       - ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+      # 大容量点群を欠落なく送るため Fast DDS の SHM セグメントを拡大（README 参照）
+      - FASTRTPS_DEFAULT_PROFILES_FILE=/home/ubuntu/ros2_ws/src/jt128_gazebo/config/fastdds_shm.xml
     # NVIDIA GPU によるハードウェアレンダリング（ogre2）を有効化
     deploy:
       resources:

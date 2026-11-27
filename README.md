@@ -29,6 +29,7 @@ Hesai JT128（3D LiDAR）を Gazebo Sim（Harmonic）および ROS 2（Jazzy）�
             ├── CMakeLists.txt
             ├── package.xml
             ├── config/
+            │   ├── fastdds_shm.xml          # Fast DDS 共有メモリ設定（docker-compose.yml から読み込み）
             │   ├── jt128.yaml               # センサ設定（起動時に読み込み）
             │   └── jt128_bridge.yaml        # ros_gz_bridge 用トピック設定
             ├── launch/
@@ -55,20 +56,40 @@ Hesai JT128（3D LiDAR）を Gazebo Sim（Harmonic）および ROS 2（Jazzy）�
    ```bash
    xhost +local:docker
    ```
-2. コンテナをビルドして起動します（ビルド時にコンテナイメージ内の `/root/ros2_ws` へも `src/` の複製と `colcon build --symlink-install` が行われます）。
+2. コンテナをビルドして起動します（ビルド時にコンテナイメージ内の `/home/ubuntu/ros2_ws` へも `src/` の複製と `colcon build --symlink-install` が行われます）。
    ```bash
    docker compose build
    docker compose up -d
    ```
-3. コンテナに入って確認・再ビルドします（`docker compose up -d` 時はホスト側の `./ros2_ws` が `/root/ros2_ws` にマウントされるため、ソース変更後に再ビルドしてください）。
+   コンテナ内のプロセスは root ではなく `ubuntu` ユーザー（既定 UID/GID 1000）で動作します。ホストのユーザーの UID/GID（`id -u` / `id -g`）が 1000 以外の場合は、合わせてビルドしてください（理由は後述の共有メモリ設定を参照）。
+   ```bash
+   HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose build
+   ```
+3. コンテナに入って確認・再ビルドします（`docker compose up -d` 時はホスト側の `./ros2_ws` が `/home/ubuntu/ros2_ws` にマウントされるため、ソース変更後に再ビルドしてください）。
    ```bash
    docker compose exec jt128_sim bash
    colcon build --symlink-install
-   source /root/ros2_ws/install/setup.bash
+   source /home/ubuntu/ros2_ws/install/setup.bash
    ```
+   `apt install` など管理者権限が必要な作業は `docker compose exec -u root jt128_sim bash` で入って行います。以前の root で動作する版でビルドした `ros2_ws/build`・`install`・`log` が残っている場合は、root 所有のため `sudo rm -rf ros2_ws/build ros2_ws/install ros2_ws/log` で削除してから再ビルドしてください。
 
 > [!NOTE]
 > `docker-compose.yml` は `network_mode: host` を使用し、`ROS_DOMAIN_ID=11` および `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` を設定しています。`LOCALHOST` は同一マシン内への限定であり、ホストプロセスとの隔離ではありません。そのため、**同じホスト上で同じ `ROS_DOMAIN_ID=11` を持つ他プロセスとも通信します**。
+
+### 点群通信の共有メモリ設定（Fast DDS）
+
+JT128 の点群は 1 メッセージ約 1.8 MB（20 Hz）あり、Fast DDS 既定の共有メモリ（SHM）セグメント 512 KB に収まらず分割送信されます。その結果、BEST_EFFORT 購読では約半数が欠落し（Jazzy の `ros2 topic hz` は BEST_EFFORT 固定のため約 9 Hz と表示）、RELIABLE 購読でも遅延が 20〜35 ms に増えます。
+そこで [fastdds_shm.xml](ros2_ws/src/jt128_gazebo/config/fastdds_shm.xml) でセグメントを 32 MB に拡大し、[docker-compose.yml](docker-compose.yml) の `FASTRTPS_DEFAULT_PROFILES_FILE` で読み込んでいます（変更後は `docker compose up -d` でコンテナを再作成すると反映されます）。
+
+| 実測（20 Hz・1.8 MB/メッセージ） | 既定 | 本設定 |
+|---|---|---|
+| BEST_EFFORT 購読の受信周期 | 約 10 Hz（約 49% 欠落） | 19.8 Hz（欠落 0） |
+| RELIABLE 購読の平均遅延 | 約 24 ms | 約 0.8 ms |
+
+- 送信側（本コンテナの `ros_gz_bridge`）の設定で効くため、受信側の変更は不要です。対象は同じ `/dev/shm` を共有する Fast DDS（`rmw_fastrtps_cpp`）のプロセスです（`ipc: host` のコンテナなど）。
+- コンテナ内のプロセスはホストと同じ UID で動作するため、ホストの一般ユーザーのプロセス（ROS 2 CLI・RViz2・MATLAB R2026a など）も SHM で受信できます（実測でホストの ROS 2・MATLAB R2026a とも約 19.7 Hz・欠落 0）。**UID が異なると SHM ファイル（権限 `0644`）を開けず、点群が 1 通も届きません**。たとえば、コンテナを root で動かした場合がこれに当たります。
+- `network_mode: host` で IPC を共有しないコンテナも受信できません。Jazzy の `ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST` では rmw_fastrtps が SHM を必ず有効にするため（`FASTDDS_BUILTIN_TRANSPORTS=UDPv4` も無効）、`ipc: host` などで `/dev/shm` を共有してください。
+- XML で `maxMessageSize` を `segment_size` より大きくすると SHM が無効になり、UDP のみの通信になります。
 
 ---
 

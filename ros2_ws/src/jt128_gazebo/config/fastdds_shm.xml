@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Fast DDS 共有メモリ（SHM）トランスポート設定
+  JT128 点群（20 Hz で約 1.8 MB/メッセージ）を分割せずに SHM で送るため、
+  セグメントを既定の 512 KB から 32 MB に拡大する。UDPv4 は別ホスト・SHM 非共有の相手用に残す。
+  注意: maxMessageSize を segment_size より大きく指定すると SHM が無効化され UDP のみになる。
+-->
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+  <transport_descriptors>
+    <transport_descriptor>
+      <transport_id>shm_large</transport_id>
+      <type>SHM</type>
+      <segment_size>33554432</segment_size>
+    </transport_descriptor>
+    <transport_descriptor>
+      <transport_id>udp</transport_id>
+      <type>UDPv4</type>
+    </transport_descriptor>
+  </transport_descriptors>
+
+  <participant profile_name="jt128_shm_large" is_default_profile="true">
+    <rtps>
+      <userTransports>
+        <transport_id>shm_large</transport_id>
+        <transport_id>udp</transport_id>
+      </userTransports>
+      <useBuiltinTransports>false</useBuiltinTransports>
+    </rtps>
+  </participant>
+</profiles>
